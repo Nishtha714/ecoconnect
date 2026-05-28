@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(venv/Scripts/pip list *)",
+      "Bash(venv/Scripts/pip install *)"
+    ]
+  }
+}
