@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd eco-connect && npx expo export --platform web --output-dir dist",
+  "outputDirectory": "eco-connect/dist",
+  "installCommand": "cd eco-connect && npm install"
+}
