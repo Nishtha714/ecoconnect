@@ -408,11 +408,11 @@ export default function ChampionOnboarding() {
         {/* ── STEP 1: Personal Info ─────────────────────────────────────── */}
         {step === 0 && (
           <View style={s.formCard}>
-            <Field label="Job Title / Occupation" required>
+            <Field label="Expertise Area" required>
               <Input
                 value={occupation}
                 onChangeText={setOccupation}
-                placeholder="e.g. Carbon Reduction Specialist"
+                placeholder="e.g. Data Analyst, Project Manager, ESG Consultant"
                 error={errors.occupation}
               />
             </Field>
