@@ -8,7 +8,7 @@ import { getStoredUser, logout, StoredUser, getToken } from "@/services/auth";
 import { getEarnings } from "@/services/api";
 
 const G       = "#059669";
-const BASE    = "http://localhost:8000";
+const BASE = "https://ecoconnect-backend-7qov.onrender.com";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const initials = (n: string) =>

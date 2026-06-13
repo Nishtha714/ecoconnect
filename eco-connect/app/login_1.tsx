@@ -9,8 +9,7 @@ import { loginUser } from "@/services/api";
 import { saveToken, saveUser } from "@/services/auth";
 
 const G    = "#059669";
-const BASE = "http://192.168.1.8:8000";
-
+const BASE = "https://ecoconnect-backend-7qov.onrender.com";
 export default function Login() {
   const router = useRouter();
   const { width } = useWindowDimensions();
