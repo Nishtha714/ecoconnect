@@ -1,18 +1,17 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, RefreshControl, Image, Alert,
+  ScrollView, ActivityIndicator, RefreshControl, Image, Alert, Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
   getDashboard, getProjects, getFreelancers,
   getAllocations, suggestUsers, adminDecision, verifyKYC,
 } from "@/services/api";
-import { useGuard, logout } from "@/services/auth";
-
+import { useGuard, logout, getToken } from "@/services/auth";
 const G = "#059669";
 type Tab = "approvals" | "kyc" | "projects";
-
+const BASE_URL = "https://ecoconnect-backend-7qov.onrender.com";
 export default function Dashboard() {
   const router   = useRouter();
   const { ready } = useGuard("admin");
@@ -23,7 +22,7 @@ export default function Dashboard() {
   const [freelancers, setFreelancers] = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
-
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
   // Per-project suggested candidates { project_id: Champion[] }
   const [suggestions,  setSuggestions]  = useState<Record<string, any[]>>({});
   const [suggesting,   setSuggesting]   = useState<Record<string, boolean>>({});
@@ -128,6 +127,33 @@ export default function Dashboard() {
   const pendingProjects  = projects.filter(p => p.status === "active" || p.status === "open");
   const pendingKYC       = freelancers.filter(u => u.kyc_status === "pending" || !u.kyc_status);
   const topEarners       = [...freelancers].sort((a, b) => (b.earnings ?? 0) - (a.earnings ?? 0)).slice(0, 3);
+
+  const handleViewResume = async (u: any) => {
+  if (!u.resume) {
+    Alert.alert("No resume", `${u.name} hasn't uploaded a resume yet.`);
+    return;
+  }
+  if (Platform.OS !== "web") {
+    Alert.alert("Resume", "Open this dashboard on web to view resumes for now.");
+    return;
+  }
+  try {
+    const token = await getToken();
+    const res = await fetch(`${BASE_URL}/download-resume/${u.user_id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Resume not found on server");
+    const blob = await res.blob();
+    const url  = window.URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = u.resume.split("/").pop() || `${u.name}_resume`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  } catch (e: any) {
+    Alert.alert("Error", e.message || "Could not open resume.");
+  }
+};
 
   const statCards = [
     {
@@ -378,9 +404,14 @@ export default function Dashboard() {
                 const kycStatus  = u.kyc_status ?? "pending";
                 const isPending  = kycStatus === "pending";
                 const isLoading  = kycLoading[u.user_id] ?? false;
+                const isExpanded = expandedUser === u.user_id;
                 return (
                   <View key={i} style={s.listItem}>
-                    <View style={s.listItemHeader}>
+                    <TouchableOpacity
+                      style={s.listItemHeader}
+                      onPress={() => setExpandedUser(isExpanded ? null : u.user_id)}
+                      activeOpacity={0.7}
+                    >
                       <View style={{ flex: 1 }}>
                         <View style={s.kycNameRow}>
                           <Text style={s.listTitle}>{u.name}</Text>
@@ -406,7 +437,31 @@ export default function Dashboard() {
                           </Text>
                         )}
                       </View>
-                    </View>
+                      <Text style={s.expandChevron}>{isExpanded ? "▲" : "▼"}</Text>
+                    </TouchableOpacity>
+
+                    {isExpanded && (
+                      <View style={s.profileDetailBox}>
+                        {u.occupation        && <Text style={s.detailRow}><Text style={s.detailLabel}>Expertise: </Text>{u.occupation}</Text>}
+                        {u.country           && <Text style={s.detailRow}><Text style={s.detailLabel}>Location: </Text>{u.country}</Text>}
+                        {u.experience_years  && <Text style={s.detailRow}><Text style={s.detailLabel}>Experience: </Text>{u.experience_years}</Text>}
+                        {u.skills?.length > 0 && <Text style={s.detailRow}><Text style={s.detailLabel}>All Skills: </Text>{u.skills.join(", ")}</Text>}
+                        {u.domains?.length > 0 && <Text style={s.detailRow}><Text style={s.detailLabel}>Domains: </Text>{u.domains.join(", ")}</Text>}
+                        {u.bio                && <Text style={s.detailRow}><Text style={s.detailLabel}>Bio: </Text>{u.bio}</Text>}
+                        {u.employer           && <Text style={s.detailRow}><Text style={s.detailLabel}>Employer: </Text>{u.employer}</Text>}
+                        {u.internships        && <Text style={s.detailRow}><Text style={s.detailLabel}>Internships: </Text>{u.internships}</Text>}
+                        {u.certifications     && <Text style={s.detailRow}><Text style={s.detailLabel}>Certifications: </Text>{u.certifications}</Text>}
+                        {u.portfolio          && <Text style={s.detailRow}><Text style={s.detailLabel}>Portfolio: </Text>{u.portfolio}</Text>}
+                        {u.id_proof           && <Text style={s.detailRow}><Text style={s.detailLabel}>ID Proof: </Text>{u.id_proof}</Text>}
+
+                        <TouchableOpacity
+                          style={[s.ghostBtn, { marginTop: 10, alignSelf: "flex-start" }]}
+                          onPress={() => handleViewResume(u)}
+                        >
+                          <Text style={s.ghostBtnText}>{u.resume ? "📄 View Resume" : "No resume uploaded"}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
 
                     {isPending && (
                       <View style={s.actionRow}>
@@ -577,6 +632,11 @@ const s = StyleSheet.create({
   infoBadgeText:     { fontSize: 11, color: "#1e40af", fontWeight: "600" },
   kycVerifiedBadge:  { backgroundColor: "#d1fae5" },
   kycRejectedBadge:  { backgroundColor: "#fee2e2" },
+
+  expandChevron:    { fontSize: 12, color: "#9ca3af", marginLeft: 8, marginTop: 8 },
+profileDetailBox: { backgroundColor: "#f9fafb", borderRadius: 10, padding: 14, marginBottom: 14 },
+detailRow:        { fontSize: 13, color: "#374151", marginBottom: 6, lineHeight: 19 },
+detailLabel:      { fontWeight: "600", color: "#111827" },
 
   kycNameRow:        { flexDirection: "row", alignItems: "center", gap: 8 },
   assignedBox:       { backgroundColor: "#f9fafb", borderRadius: 10, padding: 14, marginBottom: 14 },
