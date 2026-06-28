@@ -5,8 +5,11 @@ import {
   type AdminReview, type DashboardStats,
 } from '../services/api';
 
+const BASE_URL = "https://ecoconnect-backend-7qov.onrender.com";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type DecisionState = Record<string, 'loading' | 'approved' | 'rejected' | null>;
+type ActiveTab = 'reviews' | 'allocations' | 'users' | 'kyc' | 'create';
 
 // ─── Shared micro-components ──────────────────────────────────────────────────
 function StatCard({ icon, value, label, color = 'text-primary' }:
@@ -193,6 +196,424 @@ function Tab({ label, active, badge, onClick }:
   );
 }
 
+// ─── KYC Candidate Card ───────────────────────────────────────────────────────
+function KYCCandidateCard({ user, onStatusChange }: { user: any; onStatusChange: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const statusColor =
+    user.kyc_status === 'verified'  ? 'bg-emerald-100 text-emerald-700' :
+    user.kyc_status === 'rejected'  ? 'bg-red-100 text-red-700' :
+    user.kyc_status === 'pending'   ? 'bg-amber-100 text-amber-700' :
+                                      'bg-slate-100 text-slate-500';
+
+  const updateKYC = async (status: 'verified' | 'rejected') => {
+    setUpdating(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${BASE_URL}/update-user/${user.user_id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ kyc_status: status }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      onStatusChange();
+    } catch {
+      alert('KYC update failed. Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const initials = user.name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) ?? '??';
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      {/* Header row — always visible */}
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition-colors"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center
+                          text-sm font-bold text-primary flex-shrink-0">
+            {initials}
+          </div>
+          <div>
+            <p className="font-medium text-foreground">{user.name}</p>
+            <p className="text-xs text-muted-foreground">{user.email}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusColor}`}>
+            {user.kyc_status ?? 'not submitted'}
+          </span>
+          <span className="text-muted-foreground text-xs">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+
+      {/* Expanded profile */}
+      {expanded && (
+        <div className="border-t border-border p-5 bg-slate-50 space-y-5">
+
+          {/* Basic info grid */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {[
+              { label: 'Occupation',      value: user.occupation },
+              { label: 'Country',         value: user.country },
+              { label: 'Experience',      value: user.experience_years },
+              { label: 'Employer',        value: user.employer },
+              { label: 'Portfolio',       value: user.portfolio },
+              { label: 'Certifications',  value: user.certifications },
+              { label: 'Internships',     value: user.internships },
+            ].map(({ label, value }) => value ? (
+              <div key={label}>
+                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-0.5">
+                  {label}
+                </p>
+                <p className="text-foreground break-words">{value}</p>
+              </div>
+            ) : null)}
+          </div>
+
+          {/* Bio */}
+          {user.bio && (
+            <div>
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-1">Bio</p>
+              <p className="text-sm text-foreground leading-relaxed">{user.bio}</p>
+            </div>
+          )}
+
+          {/* Skills */}
+          {user.skills?.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-2">Skills</p>
+              <div className="flex flex-wrap gap-2">
+                {user.skills.map((s: string) => (
+                  <span key={s}
+                    className="px-2.5 py-1 bg-white border border-border rounded-full text-xs text-foreground">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Domains */}
+          {user.domains?.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide mb-2">Domains</p>
+              <div className="flex flex-wrap gap-2">
+                {user.domains.map((d: string) => (
+                  <span key={d}
+                    className="px-2.5 py-1 bg-primary/10 border border-primary/20 rounded-full text-xs text-primary font-medium">
+                    {d}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Documents section */}
+          <div className="bg-white border border-border rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              📋 KYC Documents
+            </p>
+
+            {/* Government ID */}
+            <div className="flex items-center justify-between py-2 border-b border-border text-sm">
+              <span className="text-foreground font-medium">Government ID</span>
+              {user.id_proof ? (
+                <span className="font-mono text-foreground bg-slate-100 px-2.5 py-1 rounded text-xs">
+                  {user.id_proof}
+                </span>
+              ) : (
+                <span className="text-red-500 text-xs font-medium">⚠ Not provided</span>
+              )}
+            </div>
+
+            {/* Resume */}
+            <div className="flex items-center justify-between py-2 text-sm">
+              <span className="text-foreground font-medium">Resume / CV</span>
+              {user.resume ? (
+                <a
+                  href={`${BASE_URL}/download-resume/${user.user_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white
+                             text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+                >
+                  ⬇ Download Resume
+                </a>
+              ) : (
+                <span className="text-red-500 text-xs font-medium">⚠ Not uploaded</span>
+              )}
+            </div>
+          </div>
+
+          {/* KYC action buttons */}
+          {user.kyc_status !== 'verified' && (
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => updateKYC('verified')}
+                disabled={updating}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white
+                           text-sm font-semibold rounded-lg hover:bg-emerald-700
+                           transition-colors disabled:opacity-60"
+              >
+                {updating ? '...' : '✓ Approve KYC'}
+              </button>
+              <button
+                onClick={() => updateKYC('rejected')}
+                disabled={updating}
+                className="flex items-center gap-1.5 px-4 py-2 border border-red-200
+                           text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50
+                           transition-colors disabled:opacity-60"
+              >
+                {updating ? '...' : '✕ Reject KYC'}
+              </button>
+            </div>
+          )}
+
+          {user.kyc_status === 'verified' && (
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => updateKYC('rejected')}
+                disabled={updating}
+                className="flex items-center gap-1.5 px-4 py-2 border border-red-200
+                           text-red-600 text-sm font-semibold rounded-lg hover:bg-red-50
+                           transition-colors disabled:opacity-60"
+              >
+                {updating ? '...' : '✕ Revoke KYC'}
+              </button>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── KYC Panel ────────────────────────────────────────────────────────────────
+function KYCPanel() {
+  const [kycUsers, setKycUsers]   = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [filter, setFilter]       = useState<'all' | 'pending' | 'verified' | 'rejected'>('all');
+
+  const load = () => {
+    setLoading(true);
+    getAllUsers()
+      .then((users: any[]) => setKycUsers(users.filter(u => u.role === 'freelancer')))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const filtered = filter === 'all'
+    ? kycUsers
+    : kycUsers.filter(u => (u.kyc_status ?? 'not submitted') === filter);
+
+  const counts = {
+    all:      kycUsers.length,
+    pending:  kycUsers.filter(u => u.kyc_status === 'pending').length,
+    verified: kycUsers.filter(u => u.kyc_status === 'verified').length,
+    rejected: kycUsers.filter(u => u.kyc_status === 'rejected').length,
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-border">
+      <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
+        <div>
+          <h2 className="font-semibold text-lg text-foreground">KYC Verification</h2>
+          <p className="text-sm text-muted-foreground">Review candidate profiles and documents</p>
+        </div>
+        <button
+          onClick={load}
+          className="text-xs text-primary font-medium hover:underline"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {/* Filter pills */}
+      <div className="flex gap-2 px-6 pt-4">
+        {(['all', 'pending', 'verified', 'rejected'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border
+              ${filter === f
+                ? f === 'verified'  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : f === 'pending'   ? 'bg-amber-100 text-amber-700 border-amber-200'
+                : f === 'rejected'  ? 'bg-red-100 text-red-700 border-red-200'
+                :                    'bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-white text-muted-foreground border-border hover:bg-slate-50'}`}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+            {' '}({counts[f]})
+          </button>
+        ))}
+      </div>
+
+      <div className="p-6 space-y-3">
+        {loading ? (
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-3xl mb-3">🔍</p>
+            <p className="text-muted-foreground text-sm">No candidates in this category.</p>
+          </div>
+        ) : (
+          filtered.map(u => (
+            <KYCCandidateCard key={u.user_id} user={u} onStatusChange={load} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Create Project Panel ─────────────────────────────────────────────────────
+function CreateProjectPanel() {
+  const [form, setForm] = useState({
+    title:           '',
+    required_skills: '',
+    budget:          '',
+    timeline:        '',
+    scope:           '',
+    client_email:    '',
+    company_name:    '',
+    duration:        '',
+  });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState('');
+  const [error, setError]     = useState('');
+
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.budget || !form.timeline.trim()) {
+      setError('Title, budget and timeline are required.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const token = localStorage.getItem('token');
+      const payload = {
+        ...form,
+        budget: parseFloat(form.budget),
+        required_skills: form.required_skills
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean),
+      };
+      const res = await fetch(`${BASE_URL}/add-project`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail ?? 'Something went wrong');
+      }
+      setSuccess('Project created successfully! 🎉');
+      setForm({
+        title: '', required_skills: '', budget: '',
+        timeline: '', scope: '', client_email: '',
+        company_name: '', duration: '',
+      });
+    } catch (e: any) {
+      setError(e.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const Field = ({
+    label, fieldKey, placeholder, required = false, type = 'text',
+  }: {
+    label: string; fieldKey: string; placeholder: string;
+    required?: boolean; type?: string;
+  }) => (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1.5">
+        {label}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      <input
+        type={type}
+        value={(form as any)[fieldKey]}
+        onChange={e => setForm(f => ({ ...f, [fieldKey]: e.target.value }))}
+        placeholder={placeholder}
+        className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground
+                   placeholder:text-muted-foreground focus:outline-none
+                   focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+      />
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-xl border border-border">
+      <div className="px-6 pt-5 pb-4 border-b border-border">
+        <h2 className="font-semibold text-lg text-foreground">Create New Project</h2>
+        <p className="text-sm text-muted-foreground">Add a project to the platform</p>
+      </div>
+
+      <div className="p-6 max-w-2xl space-y-4">
+        <Field label="Project Title"     fieldKey="title"        placeholder="e.g. ESG Reporting Consultant"            required />
+        <Field label="Required Skills"   fieldKey="required_skills" placeholder="e.g. ESG, Carbon Accounting, Excel (comma separated)" />
+        <Field label="Budget (₹)"        fieldKey="budget"       placeholder="e.g. 50000"  required type="number" />
+        <Field label="Timeline"          fieldKey="timeline"     placeholder="e.g. 3 months" required />
+        <Field label="Duration"          fieldKey="duration"     placeholder="e.g. Part-time, 3 months" />
+        <Field label="Client Email"      fieldKey="client_email" placeholder="client@company.com" type="email" />
+        <Field label="Company Name"      fieldKey="company_name" placeholder="e.g. Tata Power" />
+
+        {/* Scope textarea */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Scope</label>
+          <textarea
+            value={form.scope}
+            onChange={e => setForm(f => ({ ...f, scope: e.target.value }))}
+            placeholder="Describe the project scope and deliverables..."
+            rows={4}
+            className="w-full border border-border rounded-lg px-3 py-2.5 text-sm text-foreground
+                       placeholder:text-muted-foreground resize-none focus:outline-none
+                       focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          />
+        </div>
+
+        {error   && <p className="text-red-500 text-sm">{error}</p>}
+        {success && (
+          <p className="text-emerald-600 text-sm font-medium bg-emerald-50 border border-emerald-100
+                        rounded-lg px-4 py-2.5">
+            {success}
+          </p>
+        )}
+
+        <button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="px-6 py-2.5 bg-primary text-white text-sm font-semibold rounded-lg
+                     hover:bg-primary/90 transition-colors disabled:opacity-60"
+        >
+          {loading ? 'Creating...' : 'Create Project →'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 export function AdminDashboard() {
   const [data, setData] = useState<{
@@ -201,7 +622,7 @@ export function AdminDashboard() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [decisions, setDecisions] = useState<DecisionState>({});
-  const [activeTab, setActiveTab] = useState<'reviews' | 'allocations' | 'users'>('reviews');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('reviews');
   const [allAllocations, setAllAllocations] = useState<AdminReview[]>([]);
   const [allocLoading, setAllocLoading]     = useState(false);
 
@@ -215,7 +636,7 @@ export function AdminDashboard() {
 
   useEffect(load, [load]);
 
-  // Load allocations when tab switches — fixes the allocation display bug
+  // Load allocations when tab switches
   useEffect(() => {
     if (activeTab !== 'allocations') return;
     setAllocLoading(true);
@@ -233,7 +654,6 @@ export function AdminDashboard() {
         ...d,
         [projectId]: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : null,
       }));
-      // Refresh stats after decision
       setTimeout(load, 800);
     } catch (e: any) {
       setDecisions(d => ({ ...d, [projectId]: null }));
@@ -257,14 +677,14 @@ export function AdminDashboard() {
               <circle cx="12" cy="12" r="10" strokeWidth="2"/>
               <polyline points="12 6 12 12 16 14" strokeWidth="2"/>
             </svg>,
-      value: stats.pending_reviews ?? 0,  label: 'Pending Reviews',  color: 'text-amber-500',
+      value: stats.pending_reviews ?? 0, label: 'Pending Reviews', color: 'text-amber-500',
     },
     {
       icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>,
-      value: stats.approved_today ?? 0,   label: 'Approved Today',   color: 'text-emerald-500',
+      value: stats.approved_today ?? 0, label: 'Approved Today', color: 'text-emerald-500',
     },
     {
       icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -272,7 +692,7 @@ export function AdminDashboard() {
                 d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               <circle cx="12" cy="12" r="10" strokeWidth="2"/>
             </svg>,
-      value: stats.kyc_pending ?? 0,      label: 'KYC Verification', color: 'text-blue-500',
+      value: stats.kyc_pending ?? 0, label: 'KYC Verification', color: 'text-blue-500',
     },
     {
       icon: <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -308,13 +728,17 @@ export function AdminDashboard() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-muted/60 p-1 rounded-xl w-fit mb-6">
-          <Tab label="Pending Reviews"   active={activeTab === 'reviews'}
-            badge={pendingCount}           onClick={() => setActiveTab('reviews')} />
-          <Tab label="All Allocations"   active={activeTab === 'allocations'}
+        <div className="flex gap-1 bg-muted/60 p-1 rounded-xl w-fit mb-6 flex-wrap">
+          <Tab label="Pending Reviews"  active={activeTab === 'reviews'}
+            badge={pendingCount}         onClick={() => setActiveTab('reviews')} />
+          <Tab label="All Allocations"  active={activeTab === 'allocations'}
             onClick={() => setActiveTab('allocations')} />
-          <Tab label="User Management"   active={activeTab === 'users'}
+          <Tab label="User Management"  active={activeTab === 'users'}
             onClick={() => setActiveTab('users')} />
+          <Tab label="KYC Verification" active={activeTab === 'kyc'}
+            badge={stats.kyc_pending}    onClick={() => setActiveTab('kyc')} />
+          <Tab label="Create Project"   active={activeTab === 'create'}
+            onClick={() => setActiveTab('create')} />
         </div>
 
         <div className="grid lg:grid-cols-[1fr_340px] gap-6">
@@ -359,7 +783,7 @@ export function AdminDashboard() {
               </div>
             )}
 
-            {/* ─ All Allocations (fixed view) ─ */}
+            {/* ─ All Allocations ─ */}
             {activeTab === 'allocations' && (
               <div className="bg-white rounded-xl border border-border">
                 <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border">
@@ -402,8 +826,7 @@ export function AdminDashboard() {
                         <tbody>
                           {allAllocations.map(a => (
                             <tr key={a.allocation_id}
-                              className="border-b border-border last:border-0 hover:bg-slate-50
-                                         transition-colors">
+                              className="border-b border-border last:border-0 hover:bg-slate-50 transition-colors">
                               <td className="py-3 px-2 font-medium text-foreground max-w-[160px]">
                                 <span className="truncate block">{a.project_title}</span>
                               </td>
@@ -440,8 +863,14 @@ export function AdminDashboard() {
               </div>
             )}
 
-            {/* ─ User management ─ */}
+            {/* ─ User Management ─ */}
             {activeTab === 'users' && <UserManagementPanel />}
+
+            {/* ─ KYC Verification ─ */}
+            {activeTab === 'kyc' && <KYCPanel />}
+
+            {/* ─ Create Project ─ */}
+            {activeTab === 'create' && <CreateProjectPanel />}
           </div>
 
           {/* ── Right sidebar ── */}
@@ -451,9 +880,9 @@ export function AdminDashboard() {
               <h3 className="font-semibold text-foreground mb-4">Today's Overview</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Approvals',        value: stats.approvals_today ?? 12,     color: 'text-emerald-600' },
-                  { label: 'Rejections',       value: stats.rejections_today ?? 3,     color: 'text-red-500' },
-                  { label: 'KYC Verified',     value: stats.kyc_verified_today ?? 7,   color: 'text-blue-600' },
+                  { label: 'Approvals',        value: stats.approvals_today ?? 12,        color: 'text-emerald-600' },
+                  { label: 'Rejections',       value: stats.rejections_today ?? 3,        color: 'text-red-500' },
+                  { label: 'KYC Verified',     value: stats.kyc_verified_today ?? 7,      color: 'text-blue-600' },
                   { label: 'Avg. Review Time', value: stats.avg_review_time ?? '2.5 hrs', color: 'text-slate-700' },
                 ].map((row, i) => (
                   <div key={i} className="flex items-center justify-between text-sm">
@@ -475,14 +904,14 @@ export function AdminDashboard() {
               )}
             </div>
 
-            {/* Quick stats */}
+            {/* Platform health */}
             <div className="bg-white rounded-xl border border-border p-5">
               <h3 className="font-semibold text-foreground mb-4">Platform Health</h3>
               <div className="space-y-3">
                 {[
-                  { label: 'Approval Rate',  value: '80%', bar: 80  },
-                  { label: 'KYC Pass Rate',  value: '93%', bar: 93  },
-                  { label: 'Active Rate',    value: '67%', bar: 67  },
+                  { label: 'Approval Rate', value: '80%', bar: 80 },
+                  { label: 'KYC Pass Rate', value: '93%', bar: 93 },
+                  { label: 'Active Rate',   value: '67%', bar: 67 },
                 ].map((m, i) => (
                   <div key={i}>
                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
@@ -559,8 +988,8 @@ function UserManagementPanel() {
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-1 rounded-full font-medium
                     ${u.role === 'freelancer' ? 'bg-emerald-100 text-emerald-700'
-                      : u.role === 'client' ? 'bg-blue-100 text-blue-700'
-                      : 'bg-amber-100 text-amber-700'}`}>
+                      : u.role === 'client'   ? 'bg-blue-100 text-blue-700'
+                      :                         'bg-amber-100 text-amber-700'}`}>
                     {u.role === 'freelancer' ? 'Champion' : u.role}
                   </span>
                 </div>

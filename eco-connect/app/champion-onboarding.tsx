@@ -245,6 +245,11 @@ export default function ChampionOnboarding() {
       if (!skills.trim())       e.skills  = "Add at least one skill";
       if (domains.length === 0) e.domains = "Select at least one domain";
     }
+
+    if (step === 2) {
+  if (!resumeFile) e.resume = "Resume is required";
+  if (!idProof.trim()) e.idProof = "Government ID is required";
+}
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -440,6 +445,8 @@ export default function ChampionOnboarding() {
                 multiline
               />
             </Field>
+
+            
           </View>
         )}
 
@@ -504,7 +511,7 @@ export default function ChampionOnboarding() {
             </View>
 
             {/* Resume upload — FIXED: opens file manager */}
-            <Field label="Resume / CV" hint="(PDF or DOC)">
+            <Field label="Resume / CV" required hint="(PDF or DOC)">
               {resumeName ? (
                 // File selected — show file name with remove button
                 <View style={s.uploadBoxDone}>
@@ -537,13 +544,15 @@ export default function ChampionOnboarding() {
                 </TouchableOpacity>
               )}
             </Field>
+            {errors.resume && <Text style={s.errText}>{errors.resume}</Text>}
 
             {/* Government ID */}
-            <Field label="Government ID Number" hint="(for identity verification)">
+            <Field label="Government ID Number" required hint="(for identity verification)">
               <Input
                 value={idProof}
                 onChangeText={setIdProof}
                 placeholder="Aadhaar, PAN, Passport number etc."
+                error={errors.idProof} 
               />
               <Text style={s.privacyNote}>
                 🔒 Stored securely and only used for identity verification

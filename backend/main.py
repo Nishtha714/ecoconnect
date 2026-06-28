@@ -12,6 +12,9 @@ import uuid
 from email_utils import send_admin_notification
 from email_utils import send_admin_notification, generate_otp, send_otp_email, send_welcome_email
 import time
+from fastapi.responses import FileResponse
+import cloudinary
+import cloudinary.uploader
 
 from database import (
     db, users_collection, projects_collection,
@@ -72,6 +75,12 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+cloudinary.config(
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key    = os.getenv("CLOUDINARY_API_KEY"),
+    api_secret = os.getenv("CLOUDINARY_API_SECRET"),
 )
 
 otp_store = {}  # { email: { otp, expiry, user_data } }
@@ -309,6 +318,16 @@ def send_user_otp(data: User):
     send_otp_email(data.email, data.name, otp)
     return {"message": "OTP sent to your email"}
 
+
+@app.get("/test-network")
+async def test_network():
+    import httpx
+    try:
+        r = httpx.get("https://api.resend.com", timeout=5)
+        return {"status": "reachable", "code": r.status_code}
+    except Exception as e:
+        return {"status": "blocked", "error": str(e)}
+
 @app.post("/add-user/verify-otp")
 def verify_user_otp(email: str, otp: str):
     record = otp_store.get(email)
@@ -363,7 +382,6 @@ def get_user(user_id: str, _: dict = Depends(get_current_user)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
-
 
 @app.patch("/update-user/{user_id}")
 def update_user(user_id: str, data: UpdateUserRequest, current: dict = Depends(get_current_user)):
@@ -436,11 +454,19 @@ def upload_resume(
     file: UploadFile = File(...),
     _: dict = Depends(get_current_user),
 ):
-    file_path = f"{UPLOAD_DIR}/{user_id}_{file.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    users_collection.update_one({"user_id": user_id}, {"$set": {"resume": file_path}})
-    return {"message": "Resume uploaded", "path": file_path}
+    result = cloudinary.uploader.upload(
+        file.file,
+        folder=f"ecoconnect/resumes/{user_id}",
+        resource_type="raw",
+        public_id=file.filename,
+        overwrite=True,
+    )
+    resume_url = result["secure_url"]
+    users_collection.update_one(
+        {"user_id": user_id},
+        {"$set": {"resume": resume_url}}
+    )
+    return {"message": "Resume uploaded", "url": resume_url}
 
 
 # ================================================================

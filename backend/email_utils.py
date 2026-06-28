@@ -3,16 +3,18 @@ import random
 import os
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-FROM_EMAIL = "onboarding@resend.dev"
+FROM_EMAIL = "info@ecoconnectservices.org"
 ADMIN_EMAIL = "aryan@ecoconnectservices.com"
 
 def _send(payload):
-    httpx.post(
+    response = httpx.post(
         "https://api.resend.com/emails",
         headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
         json=payload,
         timeout=10
     )
+    print(f"[Email] Status: {response.status_code} | Response: {response.text}")
+    return response
 
 def generate_otp():
     return str(random.randint(100000, 999999))
