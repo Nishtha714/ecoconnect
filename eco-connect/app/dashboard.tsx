@@ -340,16 +340,16 @@ function KYCCandidateCard({ user, onStatusChange }: { user: any; onStatusChange:
             <div className="flex items-center justify-between py-2 text-sm">
               <span className="text-foreground font-medium">Resume / CV</span>
               {user.resume ? (
-                <a
-                href={user.resume?.replace('/upload/', '/upload/fl_inline/')}
-                target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white
-                             text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
-                >
-                  ⬇ Download Resume
-                </a>
+                <button
+    onClick={(e) => {
+      e.stopPropagation();
+      window.open(user.resume, '_blank');
+    }}
+    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white
+               text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors"
+  >
+    ⬇ View Resume
+  </button>
               ) : (
                 <span className="text-red-500 text-xs font-medium">⚠ Not uploaded</span>
               )}
