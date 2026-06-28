@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   getAdminDashboard, adminDecision, getAllUsers, getAllProjects, getAllocations,
+  addProject,
   type AdminReview, type DashboardStats,
 } from '../services/api';
 
@@ -498,47 +499,35 @@ function CreateProjectPanel() {
   const [error, setError]     = useState('');
 
   const handleSubmit = async () => {
-    if (!form.title.trim() || !form.budget || !form.timeline.trim()) {
-      setError('Title, budget and timeline are required.');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    setSuccess('');
-    try {
-      const token = localStorage.getItem('token');
-      const payload = {
-        ...form,
-        budget: parseFloat(form.budget),
-        required_skills: form.required_skills
-          .split(',')
-          .map(s => s.trim())
-          .filter(Boolean),
-      };
-      const res = await fetch(`${BASE_URL}/add-project`, {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.detail ?? 'Something went wrong');
-      }
-      setSuccess('Project created successfully! 🎉');
-      setForm({
-        title: '', required_skills: '', budget: '',
-        timeline: '', scope: '', client_email: '',
-        company_name: '', duration: '',
-      });
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!form.title.trim() || !form.budget || !form.timeline.trim()) {
+    setError('Title, budget and timeline are required.');
+    return;
+  }
+  setLoading(true);
+  setError('');
+  setSuccess('');
+  try {
+    const payload = {
+      ...form,
+      budget: parseFloat(form.budget),
+      required_skills: form.required_skills
+        .split(',')
+        .map((s: string) => s.trim())
+        .filter(Boolean),
+    };
+    await addProject(payload);
+    setSuccess('Project created successfully! 🎉');
+    setForm({
+      title: '', required_skills: '', budget: '',
+      timeline: '', scope: '', client_email: '',
+      company_name: '', duration: '',
+    });
+  } catch (e: any) {
+    setError(e.message || 'Something went wrong. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const Field = ({
     label, fieldKey, placeholder, required = false, type = 'text',
