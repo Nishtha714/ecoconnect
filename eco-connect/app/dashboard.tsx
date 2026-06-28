@@ -341,8 +341,8 @@ function KYCCandidateCard({ user, onStatusChange }: { user: any; onStatusChange:
               <span className="text-foreground font-medium">Resume / CV</span>
               {user.resume ? (
                 <a
-                  href={user.resume}
-                  target="_blank"
+                href={user.resume?.replace('/upload/', '/upload/fl_inline/')}
+                target="_blank"
                   rel="noopener noreferrer"
                   onClick={e => e.stopPropagation()}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white
